@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IMGW — Mapa Ostrzeżeń Hydrologicznych</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+<style>
+  :root {
+    --bg: #0b0f1a;
+    --surface: #111827;
+    --border: #1e2d45;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --accent: #38bdf8;
+    --s1: #facc15;
+    --s2: #f97316;
+    --s3: #ef4444;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    height: 100vh;
+    display: grid;
+    grid-template-rows: 56px 1fr;
+    grid-template-columns: 340px 1fr;
+    overflow: hidden;
+  }
+  header {
+    grid-column: 1 / -1;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 0 20px;
+  }
+  .logo { font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700; letter-spacing: 3px; color: var(--accent); }
+  .sep { width: 1px; height: 24px; background: var(--border); }
+  header h1 { font-size: 14px; font-weight: 600; color: var(--text); }
+  .stats { margin-left: auto; display: flex; gap: 20px; }
+  .stat { display: flex; align-items: center; gap: 6px; font-family: 'Space Mono', monospace; font-size: 11px; }
+  .stat-dot { width: 8px; height: 8px; border-radius: 50%; }
+  aside { background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+  .drop-zone {
+    margin: 16px;
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 20px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent); background: rgba(56,189,248,0.05); }
+  .drop-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+  .drop-icon { font-size: 28px; margin-bottom: 8px; }
+  .drop-zone p { font-size: 12px; color: var(--muted); line-height: 1.6; }
+  .drop-zone strong { color: var(--accent); font-size: 13px; display: block; margin-bottom: 4px; }
+  .warnings-list { flex: 1; overflow-y: auto; padding: 0 12px 12px; }
+  .warnings-list::-webkit-scrollbar { width: 4px; }
+  .warnings-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .section-label { font-family: 'Space Mono', monospace; font-size: 9px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; padding: 8px 4px 6px; }
+  .warning-card { background: var(--bg); border: 1px solid var(--border); border-left: 3px solid transparent; border-radius: 8px; padding: 12px; margin-bottom: 8px; cursor: pointer; transition: all 0.15s; }
+  .warning-card:hover { border-color: var(--accent); transform: translateX(2px); }
+  .warning-card.active { border-color: var(--accent); background: rgba(56,189,248,0.05); }
+  .warning-card.s1 { border-left-color: var(--s1); }
+  .warning-card.s2 { border-left-color: var(--s2); }
+  .warning-card.s3 { border-left-color: var(--s3); }
+  .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+  .card-area { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; padding-right: 8px; line-height: 1.3; }
+  .badge { font-family: 'Space Mono', monospace; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px; flex-shrink: 0; }
+  .badge.s1 { background: rgba(250,204,21,0.15); color: var(--s1); }
+  .badge.s2 { background: rgba(249,115,22,0.15); color: var(--s2); }
+  .badge.s3 { background: rgba(239,68,68,0.15); color: var(--s3); }
+  .card-phenomenon { font-size: 11px; color: var(--muted); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-date { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); }
+  .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 30px 20px; color: var(--muted); font-size: 12px; text-align: center; }
+  .empty-state .big { font-size: 32px; }
+  #map { width: 100%; height: 100%; background: var(--bg); }
+  .custom-cluster { display: flex; align-items: center; justify-content: center; border-radius: 50%; font-family: 'Space Mono', monospace; font-weight: 700; color: #0b0f1a; border: 3px solid rgba(0,0,0,0.25); box-shadow: 0 2px 12px rgba(0,0,0,0.5); }
+  .cluster-s1 { background: var(--s1); }
+  .cluster-s2 { background: var(--s2); }
+  .cluster-s3 { background: var(--s3); }
+  .custom-marker { display: flex; align-items: center; justify-content: center; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid rgba(0,0,0,0.35); box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
+  .custom-marker span { transform: rotate(45deg); font-family: 'Space Mono', monospace; font-size: 10px; font-weight: 700; color: #0b0f1a; }
+  .leaflet-popup-content-wrapper { background: var(--surface) !important; border: 1px solid var(--border) !important; border-radius: 10px !important; box-shadow: 0 8px 32px rgba(0,0,0,0.6) !important; padding: 0 !important; }
+  .leaflet-popup-tip { background: var(--surface) !important; }
+  .leaflet-popup-content { margin: 0 !important; width: 280px !important; }
+  .popup-body { padding: 16px; }
+  .popup-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+  .popup-area { font-size: 14px; font-weight: 700; color: var(--text); flex: 1; }
+  .popup-row { display: flex; gap: 8px; margin-bottom: 7px; font-size: 12px; }
+  .popup-label { color: var(--muted); font-family: 'Space Mono', monospace; font-size: 10px; flex-shrink: 0; padding-top: 1px; min-width: 80px; }
+  .popup-val { color: var(--text); line-height: 1.4; }
+  .leaflet-tile { filter: brightness(0.65) saturate(0.5); }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">IMGW</span>
+  <div class="sep"></div>
+  <h1>Mapa Ostrzeżeń Hydrologicznych</h1>
+  <div class="stats">
+    <div class="stat"><div class="stat-dot" style="background:var(--s1)"></div><span id="cnt1">0</span>&nbsp;stopień 1</div>
+    <div class="stat"><div class="stat-dot" style="background:var(--s2)"></div><span id="cnt2">0</span>&nbsp;stopień 2</div>
+    <div class="stat"><div class="stat-dot" style="background:var(--s3)"></div><span id="cnt3">0</span>&nbsp;stopień 3</div>
+  </div>
+</header>
+
+<aside>
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" multiple accept=".txt">
+    <div class="drop-icon">🌊</div>
+    <strong>Wczytaj pliki .txt</strong>
+    <p>Przeciągnij i upuść pliki ostrzeżeń IMGW<br>lub kliknij aby wybrać</p>
+  </div>
+  <div class="warnings-list" id="warningsList">
+    <div class="empty-state"><div class="big">📂</div><div>Wczytaj pliki ostrzeżeń<br>aby zobaczyć listę</div></div>
+  </div>
+</aside>
+
+<div id="map"></div>
+
+<!-- Scripts at end of body: DOM is ready, no async race -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script>
+const map = L.map('map', { center: [52.0, 19.5], zoom: 6, attributionControl: false });
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
+
+const clusterGroup = L.markerClusterGroup({
+  maxClusterRadius: 50,
+  showCoverageOnHover: false,
+  spiderfyOnMaxZoom: true,
+  zoomToBoundsOnClick: true,
+  iconCreateFunction(cluster) {
+    const markers = cluster.getAllChildMarkers();
+    const maxS = Math.max(...markers.map(m => m.options._stopien || 1));
+    const count = markers.length;
+    const size = count > 99 ? 48 : count > 9 ? 42 : 36;
+    const cls = maxS === 3 ? 'cluster-s3' : maxS === 2 ? 'cluster-s2' : 'cluster-s1';
+    return L.divIcon({
+      html: `<div class="custom-cluster ${cls}" style="width:${size}px;height:${size}px;font-size:${count>99?10:13}px;">${count}</div>`,
+      className: '',
+      iconSize: [size, size],
+      iconAnchor: [size/2, size/2]
+    });
+  }
+});
+map.addLayer(clusterGroup);
+
+const GEO_DB = {
+  'wisła': [50.7, 21.0], 'wisła (świętokrzyskie)': [50.7, 21.0], 'wisła (małopolskie)': [50.05, 20.0],
+  'wisła (mazowieckie)': [52.2, 21.0], 'wisła (kujawsko-pomorskie)': [53.1, 18.5], 'wisła (pomorskie)': [53.8, 18.7],
+  'odra': [51.1, 17.0], 'odra (dolnośląskie)': [51.1, 17.0], 'odra (lubuskie)': [51.9, 15.5],
+  'odra (zachodniopomorskie)': [53.4, 14.5], 'warta': [52.4, 17.8], 'warta (wielkopolskie)': [52.4, 17.0],
+  'bug': [52.5, 23.5], 'narew': [52.8, 22.5], 'san': [50.05, 22.3], 'dunajec': [49.7, 20.6],
+  'raba': [49.95, 20.1], 'soła': [49.83, 19.2], 'skawa': [49.8, 19.85], 'pilica': [51.5, 20.5],
+  'nida': [50.5, 20.5], 'kamienica': [49.7, 20.4], 'poprad': [49.62, 20.7], 'czarna hańcza': [54.1, 23.0],
+  'biebrza': [53.5, 22.8], 'brda': [53.5, 18.0], 'drawa': [53.2, 16.0], 'gwda': [53.15, 16.75],
+  'ina': [53.5, 15.0], 'obra': [52.1, 15.9], 'prosna': [51.7, 18.1], 'barycz': [51.65, 17.3],
+  'nysa łużycka': [51.5, 15.0], 'nysa kłodzka': [50.5, 16.9], 'bystrzyca': [51.0, 16.9],
+  'kaczawa': [51.2, 16.2], 'bóbr': [51.0, 15.5], 'kwisa': [51.3, 15.4], 'łeba': [54.55, 17.5],
+  'słupia': [54.45, 17.0], 'wieprz': [51.3, 22.5], 'huczwa': [50.7, 23.6], 'tanew': [50.5, 22.8],
+  'wisłoka': [50.0, 21.5], 'wisłok': [49.85, 22.0], 'lubaczówka': [50.15, 23.1],
+  'małopolskie': [49.8, 20.5], 'śląskie': [50.3, 19.0], 'podkarpackie': [49.8, 22.0],
+  'świętokrzyskie': [50.8, 20.6], 'mazowieckie': [52.2, 21.0], 'łódzkie': [51.7, 19.5],
+  'lubelskie': [51.2, 22.5], 'podlaskie': [53.1, 23.2], 'warmińsko-mazurskie': [53.8, 20.5],
+  'kujawsko-pomorskie': [53.1, 18.5], 'wielkopolskie': [52.4, 17.0], 'dolnośląskie': [51.1, 17.0],
+  'opolskie': [50.7, 17.9], 'lubuskie': [51.9, 15.5], 'zachodniopomorskie': [53.4, 15.5], 'pomorskie': [54.2, 18.5],
+};
+
+function geocode(area) {
+  if (!area) return [52.0, 19.5];
+  const lower = area.toLowerCase().trim();
+  if (GEO_DB[lower]) return GEO_DB[lower];
+  let best = null, bestLen = 0;
+  for (const [k, v] of Object.entries(GEO_DB)) {
+    if (lower.includes(k) && k.length > bestLen) { best = v; bestLen = k.length; }
+  }
+  return best || [52.0 + (Math.random()-0.5)*2, 19.5 + (Math.random()-0.5)*2];
+}
+
+function parseWarning(text, filename) {
+  const get = label => { const m = text.match(new RegExp(label + '[:\\s]+(.+)', 'i')); return m ? m[1].trim() : ''; };
+  const sm = text.match(/Stopień zagrożenia[:\s]+(\d)/i);
+  const dm = text.match(/Data i godzina wydania[:\s]+([\d.]+)[^\d]+([\d:]+)/i);
+  const wm = text.match(/Ważność[:\s]+(.+)/i);
+  return {
+    filename,
+    zjawisko: get('Zjawisko'),
+    stopien: sm ? parseInt(sm[1]) : 1,
+    waznosc: wm ? wm[1].trim() : '',
+    obszar: get('Obszar'),
+    przebieg: get('Przebieg'),
+    prawdopodobienstwo: get('Prawdopodobieństwo wystąpienia zjawiska'),
+    dataWydania: dm ? `${dm[1]} ${dm[2]}` : '',
+    dyżurny: get('Dyżurny synoptyk hydrolog'),
+  };
+}
+
+let warnings = [], activeId = null;
+const COLORS = { 1: '#facc15', 2: '#f97316', 3: '#ef4444' };
+
+function render() {
+  clusterGroup.clearLayers();
+  const list = document.getElementById('warningsList');
+  [1,2,3].forEach(s => document.getElementById('cnt'+s).textContent = warnings.filter(w=>w.stopien===s).length);
+
+  if (!warnings.length) {
+    list.innerHTML = `<div class="empty-state"><div class="big">📂</div><div>Wczytaj pliki ostrzeżeń<br>aby zobaczyć listę</div></div>`;
+    return;
+  }
+
+  list.innerHTML = `<div class="section-label">Ostrzeżenia (${warnings.length})</div>`;
+
+  warnings.forEach((w, i) => {
+    const card = document.createElement('div');
+    card.className = `warning-card s${w.stopien}${activeId===i?' active':''}`;
+    card.innerHTML = `
+      <div class="card-top">
+        <div class="card-area">${w.obszar || w.filename}</div>
+        <span class="badge s${w.stopien}">ST.${w.stopien}</span>
+      </div>
+      <div class="card-phenomenon">${w.zjawisko || '—'}</div>
+      <div class="card-date">${w.dataWydania || ''}</div>`;
+    card.addEventListener('click', () => selectWarning(i));
+    list.appendChild(card);
+
+    const coord = geocode(w.obszar);
+    const color = COLORS[w.stopien] || '#facc15';
+    const icon = L.divIcon({
+      html: `<div class="custom-marker" style="background:${color};width:28px;height:28px;"><span>${w.stopien}</span></div>`,
+      className: '', iconSize: [28,28], iconAnchor: [14,28], popupAnchor: [0,-32]
+    });
+    const marker = L.marker(coord, { icon, _stopien: w.stopien });
+    marker.bindPopup(() => buildPopup(w), { maxWidth: 300 });
+    marker.on('click', () => selectWarning(i));
+    clusterGroup.addLayer(marker);
+  });
+}
+
+function buildPopup(w) {
+  const div = document.createElement('div');
+  div.className = 'popup-body';
+  div.innerHTML = `
+    <div class="popup-header">
+      <span class="badge s${w.stopien}">STOPIEŃ ${w.stopien}</span>
+      <div class="popup-area">${w.obszar || '—'}</div>
+    </div>
+    <div class="popup-row"><span class="popup-label">Zjawisko</span><span class="popup-val">${w.zjawisko||'—'}</span></div>
+    <div class="popup-row"><span class="popup-label">Ważność</span><span class="popup-val">${w.waznosc||'—'}</span></div>
+    <div class="popup-row"><span class="popup-label">Prawdopod.</span><span class="popup-val">${w.prawdopodobienstwo||'—'}</span></div>
+    ${w.przebieg?`<div class="popup-row"><span class="popup-label">Przebieg</span><span class="popup-val" style="font-size:11px;color:var(--muted)">${w.przebieg.substring(0,200)}${w.przebieg.length>200?'…':''}</span></div>`:''}
+    <div class="popup-row"><span class="popup-label">Wydano</span><span class="popup-val">${w.dataWydania||'—'}</span></div>
+    ${w.dyżurny?`<div class="popup-row"><span class="popup-label">Dyżurny</span><span class="popup-val">${w.dyżurny}</span></div>`:''}`;
+  return div;
+}
+
+function selectWarning(i) {
+  activeId = i;
+  render();
+  document.querySelectorAll('.warning-card')[i]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function processFiles(files) {
+  Promise.all([...files].map(f => new Promise(res => {
+    const r = new FileReader();
+    r.onload = e => res({ text: e.target.result, name: f.name });
+    r.readAsText(f, 'UTF-8');
+  }))).then(results => {
+    warnings = [...warnings, ...results.map(({text, name}) => parseWarning(text, name))];
+    render();
+    const pts = warnings.map(w => geocode(w.obszar));
+    if (pts.length) map.fitBounds(pts, { padding: [50, 50] });
+  });
+}
+
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+fileInput.addEventListener('change', e => processFiles(e.target.files));
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); processFiles(e.dataTransfer.files); });
+
+// Sample on load
+const SAMPLE = `Data i godzina wydania: 23.05.2019 - godz. 10:51
+Nazwa biura prognoz hydrologicznych: BPH IMGW-PIB Kraków Obszar Kraków
+OSTRZEŻENIE HYDROLOGICZNE Nr O:5
+Zjawisko: wezbranie z przekroczeniem stanów alarmowych
+Stopień zagrożenia: 3
+Ważność: od godz. 12:00 dnia 23.05.2019 do godz. 18:00 dnia 24.05.2019
+Obszar: Wisła (świętokrzyskie)
+Przebieg: Na skutek spływu wód opadowych, na całym odcinku Wisły, notowany będzie gwałtowny wzrost poziomu wody powyżej stanów ostrzegawczych z przekroczeniem stanów alarmowych.
+Prawdopodobieństwo wystąpienia zjawiska: 95%
+Dyżurny synoptyk hydrolog: Przemysław Plewa`;
+warnings = [parseWarning(SAMPLE, 'przyklad.txt')];
+render();
+</script>
+</body>
+</html>
