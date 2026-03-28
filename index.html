@@ -3,307 +3,1024 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IMGW — Mapa Ostrzeżeń Hydrologicznych</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<title>ALERT MAP — Dashboard Ostrzeżeń</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   :root {
-    --bg: #0b0f1a;
-    --surface: #111827;
-    --border: #1e2d45;
-    --text: #e2e8f0;
-    --muted: #64748b;
-    --accent: #38bdf8;
-    --s1: #facc15;
-    --s2: #f97316;
-    --s3: #ef4444;
+    --bg: #0a0c10;
+    --surface: #111318;
+    --surface2: #181b22;
+    --border: #23272f;
+    --border-bright: #2e3340;
+    --text: #e8eaf0;
+    --text-muted: #636878;
+    --text-dim: #3a3f4d;
+    --accent: #e8c547;
+    --accent-dim: rgba(232,197,71,0.12);
+    --accent-glow: rgba(232,197,71,0.3);
+    --red: #e84747;
+    --red-dim: rgba(232,71,71,0.15);
+    --blue: #4787e8;
+    --blue-dim: rgba(71,135,232,0.15);
+    --green: #47c878;
+    --green-dim: rgba(71,200,120,0.15);
+    --orange: #e88c47;
+    --orange-dim: rgba(232,140,71,0.15);
+    --purple: #9b47e8;
+    --purple-dim: rgba(155,71,232,0.15);
+    --sidebar-w: 340px;
   }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    font-family: 'DM Sans', sans-serif;
     background: var(--bg);
     color: var(--text);
-    font-family: 'Syne', sans-serif;
-    height: 100vh;
-    display: grid;
-    grid-template-rows: 56px 1fr;
-    grid-template-columns: 340px 1fr;
     overflow: hidden;
   }
-  header {
-    grid-column: 1 / -1;
+
+  #app {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* ─── SIDEBAR ─── */
+  #sidebar {
+    width: var(--sidebar-w);
+    min-width: var(--sidebar-w);
     background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    z-index: 1000;
+    position: relative;
+  }
+
+  #sidebar-header {
+    padding: 22px 22px 16px;
     border-bottom: 1px solid var(--border);
+  }
+
+  .logo-row {
     display: flex;
     align-items: center;
-    gap: 16px;
-    padding: 0 20px;
+    gap: 10px;
+    margin-bottom: 4px;
   }
-  .logo { font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700; letter-spacing: 3px; color: var(--accent); }
-  .sep { width: 1px; height: 24px; background: var(--border); }
-  header h1 { font-size: 14px; font-weight: 600; color: var(--text); }
-  .stats { margin-left: auto; display: flex; gap: 20px; }
-  .stat { display: flex; align-items: center; gap: 6px; font-family: 'Space Mono', monospace; font-size: 11px; }
-  .stat-dot { width: 8px; height: 8px; border-radius: 50%; }
-  aside { background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
-  .drop-zone {
+
+  .logo-icon {
+    width: 28px; height: 28px;
+    background: var(--accent);
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  .logo-text {
+    font-family: 'Space Mono', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    color: var(--text);
+  }
+
+  .logo-sub {
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding-left: 38px;
+  }
+
+  /* ─── DROP ZONE ─── */
+  #drop-zone {
     margin: 16px;
-    border: 2px dashed var(--border);
-    border-radius: 10px;
-    padding: 20px 16px;
+    border: 1.5px dashed var(--border-bright);
+    border-radius: 8px;
+    padding: 22px 16px;
     text-align: center;
     cursor: pointer;
     transition: all 0.2s;
+    background: var(--surface2);
     position: relative;
+    overflow: hidden;
+  }
+
+  #drop-zone::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: var(--accent-dim);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  #drop-zone:hover, #drop-zone.drag-over {
+    border-color: var(--accent);
+  }
+  #drop-zone:hover::before, #drop-zone.drag-over::before { opacity: 1; }
+
+  .drop-icon {
+    font-size: 28px;
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  .drop-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 4px;
+    letter-spacing: 0.03em;
+  }
+
+  .drop-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  #file-input { display: none; }
+
+  /* ─── FILTERS ─── */
+  #filters {
+    padding: 0 16px 12px;
+  }
+
+  .section-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .filter-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border-bright);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: transparent;
+    color: var(--text-muted);
+    user-select: none;
+  }
+
+  .chip.active { color: var(--text); }
+  .chip-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+  .chip[data-type="all"].active { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
+  .chip[data-type="fire"].active { border-color: var(--red); background: var(--red-dim); color: var(--red); }
+  .chip[data-type="flood"].active { border-color: var(--blue); background: var(--blue-dim); color: var(--blue); }
+  .chip[data-type="storm"].active { border-color: var(--purple); background: var(--purple-dim); color: var(--purple); }
+  .chip[data-type="accident"].active { border-color: var(--orange); background: var(--orange-dim); color: var(--orange); }
+  .chip[data-type="other"].active { border-color: var(--green); background: var(--green-dim); color: var(--green); }
+
+  /* ─── WARNINGS LIST ─── */
+  #warnings-section {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 0 16px 16px;
+  }
+
+  #warnings-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  #warnings-list::-webkit-scrollbar { width: 3px; }
+  #warnings-list::-webkit-scrollbar-track { background: transparent; }
+  #warnings-list::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+
+  .warning-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+    overflow: hidden;
+    animation: slideIn 0.25s ease;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-12px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .warning-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+  }
+
+  .warning-card[data-type="fire"]::before { background: var(--red); }
+  .warning-card[data-type="flood"]::before { background: var(--blue); }
+  .warning-card[data-type="storm"]::before { background: var(--purple); }
+  .warning-card[data-type="accident"]::before { background: var(--orange); }
+  .warning-card[data-type="other"]::before { background: var(--green); }
+
+  .warning-card:hover {
+    border-color: var(--border-bright);
+    transform: translateX(2px);
+  }
+
+  .card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+
+  .card-type {
+    font-size: 9px;
+    font-family: 'Space Mono', monospace;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 3px;
+  }
+
+  [data-type="fire"] .card-type { color: var(--red); background: var(--red-dim); }
+  [data-type="flood"] .card-type { color: var(--blue); background: var(--blue-dim); }
+  [data-type="storm"] .card-type { color: var(--purple); background: var(--purple-dim); }
+  [data-type="accident"] .card-type { color: var(--orange); background: var(--orange-dim); }
+  [data-type="other"] .card-type { color: var(--green); background: var(--green-dim); }
+
+  .card-remove {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0 2px;
+    transition: color 0.15s;
     flex-shrink: 0;
   }
-  .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent); background: rgba(56,189,248,0.05); }
-  .drop-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
-  .drop-icon { font-size: 28px; margin-bottom: 8px; }
-  .drop-zone p { font-size: 12px; color: var(--muted); line-height: 1.6; }
-  .drop-zone strong { color: var(--accent); font-size: 13px; display: block; margin-bottom: 4px; }
-  .warnings-list { flex: 1; overflow-y: auto; padding: 0 12px 12px; }
-  .warnings-list::-webkit-scrollbar { width: 4px; }
-  .warnings-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-  .section-label { font-family: 'Space Mono', monospace; font-size: 9px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; padding: 8px 4px 6px; }
-  .warning-card { background: var(--bg); border: 1px solid var(--border); border-left: 3px solid transparent; border-radius: 8px; padding: 12px; margin-bottom: 8px; cursor: pointer; transition: all 0.15s; }
-  .warning-card:hover { border-color: var(--accent); transform: translateX(2px); }
-  .warning-card.active { border-color: var(--accent); background: rgba(56,189,248,0.05); }
-  .warning-card.s1 { border-left-color: var(--s1); }
-  .warning-card.s2 { border-left-color: var(--s2); }
-  .warning-card.s3 { border-left-color: var(--s3); }
-  .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
-  .card-area { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; padding-right: 8px; line-height: 1.3; }
-  .badge { font-family: 'Space Mono', monospace; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px; flex-shrink: 0; }
-  .badge.s1 { background: rgba(250,204,21,0.15); color: var(--s1); }
-  .badge.s2 { background: rgba(249,115,22,0.15); color: var(--s2); }
-  .badge.s3 { background: rgba(239,68,68,0.15); color: var(--s3); }
-  .card-phenomenon { font-size: 11px; color: var(--muted); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .card-date { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); }
-  .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 30px 20px; color: var(--muted); font-size: 12px; text-align: center; }
-  .empty-state .big { font-size: 32px; }
-  #map { width: 100%; height: 100%; background: var(--bg); }
-  .custom-cluster { display: flex; align-items: center; justify-content: center; border-radius: 50%; font-family: 'Space Mono', monospace; font-weight: 700; color: #0b0f1a; border: 3px solid rgba(0,0,0,0.25); box-shadow: 0 2px 12px rgba(0,0,0,0.5); }
-  .cluster-s1 { background: var(--s1); }
-  .cluster-s2 { background: var(--s2); }
-  .cluster-s3 { background: var(--s3); }
-  .custom-marker { display: flex; align-items: center; justify-content: center; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid rgba(0,0,0,0.35); box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
-  .custom-marker span { transform: rotate(45deg); font-family: 'Space Mono', monospace; font-size: 10px; font-weight: 700; color: #0b0f1a; }
-  .leaflet-popup-content-wrapper { background: var(--surface) !important; border: 1px solid var(--border) !important; border-radius: 10px !important; box-shadow: 0 8px 32px rgba(0,0,0,0.6) !important; padding: 0 !important; }
-  .leaflet-popup-tip { background: var(--surface) !important; }
-  .leaflet-popup-content { margin: 0 !important; width: 280px !important; }
-  .popup-body { padding: 16px; }
-  .popup-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
-  .popup-area { font-size: 14px; font-weight: 700; color: var(--text); flex: 1; }
-  .popup-row { display: flex; gap: 8px; margin-bottom: 7px; font-size: 12px; }
-  .popup-label { color: var(--muted); font-family: 'Space Mono', monospace; font-size: 10px; flex-shrink: 0; padding-top: 1px; min-width: 80px; }
-  .popup-val { color: var(--text); line-height: 1.4; }
-  .leaflet-tile { filter: brightness(0.65) saturate(0.5); }
+  .card-remove:hover { color: var(--red); }
+
+  .card-location {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 3px;
+  }
+
+  .card-preview {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.45;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .card-time {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 6px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  /* ─── EMPTY STATE ─── */
+  #empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-dim);
+    gap: 8px;
+    text-align: center;
+    padding: 20px;
+  }
+
+  .empty-icon { font-size: 32px; opacity: 0.4; }
+  .empty-text { font-size: 12px; line-height: 1.5; }
+
+  /* ─── STATS BAR ─── */
+  #stats-bar {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 16px;
+  }
+
+  .stat {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .stat-val {
+    font-family: 'Space Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+  }
+
+  .stat-label {
+    font-size: 9px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  /* ─── MAP ─── */
+  #map-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #map {
+    height: 100%;
+    width: 100%;
+    background: #0d1117;
+  }
+
+  /* ─── MAP HEADER ─── */
+  #map-header {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 500;
+    background: rgba(10,12,16,0.85);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border-bright);
+    border-radius: 6px;
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    pointer-events: none;
+  }
+
+  .map-header-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2s ease infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.7); }
+  }
+
+  .map-header-text {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+
+  /* ─── GEOCODING STATUS ─── */
+  #geocode-status {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    z-index: 500;
+    background: rgba(10,12,16,0.9);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border-bright);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: var(--text-muted);
+    display: none;
+    align-items: center;
+    gap: 8px;
+    max-width: 260px;
+  }
+
+  .status-spinner {
+    width: 14px; height: 14px;
+    border: 2px solid var(--border-bright);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ─── LEAFLET CUSTOM ─── */
+  .leaflet-popup-content-wrapper {
+    background: var(--surface) !important;
+    border: 1px solid var(--border-bright) !important;
+    border-radius: 8px !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6) !important;
+    color: var(--text) !important;
+    max-width: 280px;
+  }
+
+  .leaflet-popup-tip {
+    background: var(--surface) !important;
+  }
+
+  .leaflet-popup-content {
+    margin: 0 !important;
+    font-family: 'DM Sans', sans-serif !important;
+  }
+
+  .popup-inner { padding: 14px; }
+  .popup-type {
+    font-size: 9px;
+    font-family: 'Space Mono', monospace;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .popup-location {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+  .popup-text {
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--text-muted);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 120px;
+    overflow-y: auto;
+  }
+  .popup-text::-webkit-scrollbar { width: 3px; }
+  .popup-text::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+  .popup-time {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 8px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  /* ─── CUSTOM MARKERS ─── */
+  .marker-wrapper {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .marker-pin {
+    width: 32px; height: 32px;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.5);
+    border: 2px solid rgba(255,255,255,0.15);
+    transition: transform 0.2s;
+  }
+
+  .marker-pin span {
+    transform: rotate(45deg);
+    font-size: 13px;
+  }
+
+  /* ─── TOOLTIP ─── */
+  .leaflet-tooltip {
+    background: var(--surface) !important;
+    border: 1px solid var(--border-bright) !important;
+    border-radius: 4px !important;
+    color: var(--text) !important;
+    font-family: 'DM Sans', sans-serif !important;
+    font-size: 11px !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5) !important;
+  }
+
+  .leaflet-tooltip::before {
+    border-top-color: var(--border-bright) !important;
+  }
+
+  /* ─── CLEAR ALL ─── */
+  #clear-btn {
+    width: 100%;
+    padding: 8px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-top: 8px;
+    display: none;
+  }
+
+  #clear-btn:hover { border-color: var(--red); color: var(--red); background: var(--red-dim); }
+
+  /* ─── LOADING overlay ─── */
+  .loading-bar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    animation: loadingSlide 1.2s ease infinite;
+    z-index: 9999;
+    display: none;
+  }
+  @keyframes loadingSlide {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+
+  /* Leaflet dark overrides */
+  .leaflet-control-zoom a {
+    background: var(--surface) !important;
+    border-color: var(--border-bright) !important;
+    color: var(--text-muted) !important;
+  }
+  .leaflet-control-zoom a:hover {
+    background: var(--surface2) !important;
+    color: var(--text) !important;
+  }
+  .leaflet-control-attribution {
+    background: rgba(10,12,16,0.7) !important;
+    color: var(--text-dim) !important;
+    font-size: 9px !important;
+  }
+  .leaflet-control-attribution a { color: var(--text-dim) !important; }
 </style>
 </head>
 <body>
+<div id="app">
+  <!-- SIDEBAR -->
+  <aside id="sidebar">
+    <div class="loading-bar" id="loading-bar"></div>
 
-<header>
-  <span class="logo">IMGW</span>
-  <div class="sep"></div>
-  <h1>Mapa Ostrzeżeń Hydrologicznych</h1>
-  <div class="stats">
-    <div class="stat"><div class="stat-dot" style="background:var(--s1)"></div><span id="cnt1">0</span>&nbsp;stopień 1</div>
-    <div class="stat"><div class="stat-dot" style="background:var(--s2)"></div><span id="cnt2">0</span>&nbsp;stopień 2</div>
-    <div class="stat"><div class="stat-dot" style="background:var(--s3)"></div><span id="cnt3">0</span>&nbsp;stopień 3</div>
+    <div id="sidebar-header">
+      <div class="logo-row">
+        <div class="logo-icon">⚠</div>
+        <span class="logo-text">ALERTMAP</span>
+      </div>
+      <div class="logo-sub">System Wizualizacji Ostrzeżeń</div>
+    </div>
+
+    <!-- DROP ZONE -->
+    <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+      <span class="drop-icon">📂</span>
+      <div class="drop-label">Przeciągnij plik .txt lub kliknij</div>
+      <div class="drop-sub">Obsługiwane: pliki tekstowe z opisem ostrzeżenia</div>
+    </div>
+    <input type="file" id="file-input" accept=".txt" multiple>
+
+    <!-- FILTERS -->
+    <div id="filters">
+      <div class="section-label">Filtruj</div>
+      <div class="filter-chips">
+        <div class="chip active" data-type="all">
+          <span class="chip-dot" style="background:var(--accent)"></span>Wszystkie
+        </div>
+        <div class="chip" data-type="fire">
+          <span class="chip-dot" style="background:var(--red)"></span>Pożar
+        </div>
+        <div class="chip" data-type="flood">
+          <span class="chip-dot" style="background:var(--blue)"></span>Powódź
+        </div>
+        <div class="chip" data-type="storm">
+          <span class="chip-dot" style="background:var(--purple)"></span>Burza
+        </div>
+        <div class="chip" data-type="accident">
+          <span class="chip-dot" style="background:var(--orange)"></span>Wypadek
+        </div>
+        <div class="chip" data-type="other">
+          <span class="chip-dot" style="background:var(--green)"></span>Inne
+        </div>
+      </div>
+    </div>
+
+    <!-- WARNINGS LIST -->
+    <div id="warnings-section">
+      <div class="section-label">Ostrzeżenia</div>
+      <div id="warnings-list">
+        <div id="empty-state">
+          <div class="empty-icon">📍</div>
+          <div class="empty-text">Brak ostrzeżeń.<br>Wgraj plik .txt, aby dodać pinezkę na mapę.</div>
+        </div>
+      </div>
+      <button id="clear-btn" onclick="clearAll()">✕ &nbsp;Usuń wszystkie ostrzeżenia</button>
+    </div>
+
+    <!-- STATS -->
+    <div id="stats-bar">
+      <div class="stat">
+        <div class="stat-val" id="stat-total">0</div>
+        <div class="stat-label">Łącznie</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val" id="stat-fire" style="color:var(--red)">0</div>
+        <div class="stat-label">Pożary</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val" id="stat-flood" style="color:var(--blue)">0</div>
+        <div class="stat-label">Powodzie</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val" id="stat-storm" style="color:var(--purple)">0</div>
+        <div class="stat-label">Burze</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAP -->
+  <div id="map-container">
+    <div id="map-header">
+      <div class="map-header-dot"></div>
+      <span class="map-header-text">Mapa aktywna — dane na żywo</span>
+    </div>
+    <div id="map"></div>
+    <div id="geocode-status">
+      <div class="status-spinner"></div>
+      <span id="geocode-msg">Geokodowanie lokalizacji...</span>
+    </div>
   </div>
-</header>
+</div>
 
-<aside>
-  <div class="drop-zone" id="dropZone">
-    <input type="file" id="fileInput" multiple accept=".txt">
-    <div class="drop-icon">🌊</div>
-    <strong>Wczytaj pliki .txt</strong>
-    <p>Przeciągnij i upuść pliki ostrzeżeń IMGW<br>lub kliknij aby wybrać</p>
-  </div>
-  <div class="warnings-list" id="warningsList">
-    <div class="empty-state"><div class="big">📂</div><div>Wczytaj pliki ostrzeżeń<br>aby zobaczyć listę</div></div>
-  </div>
-</aside>
-
-<div id="map"></div>
-
-<!-- Scripts at end of body: DOM is ready, no async race -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script>
-const map = L.map('map', { center: [52.0, 19.5], zoom: 6, attributionControl: false });
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
-
-const clusterGroup = L.markerClusterGroup({
-  maxClusterRadius: 50,
-  showCoverageOnHover: false,
-  spiderfyOnMaxZoom: true,
-  zoomToBoundsOnClick: true,
-  iconCreateFunction(cluster) {
-    const markers = cluster.getAllChildMarkers();
-    const maxS = Math.max(...markers.map(m => m.options._stopien || 1));
-    const count = markers.length;
-    const size = count > 99 ? 48 : count > 9 ? 42 : 36;
-    const cls = maxS === 3 ? 'cluster-s3' : maxS === 2 ? 'cluster-s2' : 'cluster-s1';
-    return L.divIcon({
-      html: `<div class="custom-cluster ${cls}" style="width:${size}px;height:${size}px;font-size:${count>99?10:13}px;">${count}</div>`,
-      className: '',
-      iconSize: [size, size],
-      iconAnchor: [size/2, size/2]
-    });
-  }
+// ─── MAP INIT ───────────────────────────────────────────────────
+const map = L.map('map', {
+  center: [52.0, 19.5],
+  zoom: 6,
+  zoomControl: true
 });
-map.addLayer(clusterGroup);
 
-const GEO_DB = {
-  'wisła': [50.7, 21.0], 'wisła (świętokrzyskie)': [50.7, 21.0], 'wisła (małopolskie)': [50.05, 20.0],
-  'wisła (mazowieckie)': [52.2, 21.0], 'wisła (kujawsko-pomorskie)': [53.1, 18.5], 'wisła (pomorskie)': [53.8, 18.7],
-  'odra': [51.1, 17.0], 'odra (dolnośląskie)': [51.1, 17.0], 'odra (lubuskie)': [51.9, 15.5],
-  'odra (zachodniopomorskie)': [53.4, 14.5], 'warta': [52.4, 17.8], 'warta (wielkopolskie)': [52.4, 17.0],
-  'bug': [52.5, 23.5], 'narew': [52.8, 22.5], 'san': [50.05, 22.3], 'dunajec': [49.7, 20.6],
-  'raba': [49.95, 20.1], 'soła': [49.83, 19.2], 'skawa': [49.8, 19.85], 'pilica': [51.5, 20.5],
-  'nida': [50.5, 20.5], 'kamienica': [49.7, 20.4], 'poprad': [49.62, 20.7], 'czarna hańcza': [54.1, 23.0],
-  'biebrza': [53.5, 22.8], 'brda': [53.5, 18.0], 'drawa': [53.2, 16.0], 'gwda': [53.15, 16.75],
-  'ina': [53.5, 15.0], 'obra': [52.1, 15.9], 'prosna': [51.7, 18.1], 'barycz': [51.65, 17.3],
-  'nysa łużycka': [51.5, 15.0], 'nysa kłodzka': [50.5, 16.9], 'bystrzyca': [51.0, 16.9],
-  'kaczawa': [51.2, 16.2], 'bóbr': [51.0, 15.5], 'kwisa': [51.3, 15.4], 'łeba': [54.55, 17.5],
-  'słupia': [54.45, 17.0], 'wieprz': [51.3, 22.5], 'huczwa': [50.7, 23.6], 'tanew': [50.5, 22.8],
-  'wisłoka': [50.0, 21.5], 'wisłok': [49.85, 22.0], 'lubaczówka': [50.15, 23.1],
-  'małopolskie': [49.8, 20.5], 'śląskie': [50.3, 19.0], 'podkarpackie': [49.8, 22.0],
-  'świętokrzyskie': [50.8, 20.6], 'mazowieckie': [52.2, 21.0], 'łódzkie': [51.7, 19.5],
-  'lubelskie': [51.2, 22.5], 'podlaskie': [53.1, 23.2], 'warmińsko-mazurskie': [53.8, 20.5],
-  'kujawsko-pomorskie': [53.1, 18.5], 'wielkopolskie': [52.4, 17.0], 'dolnośląskie': [51.1, 17.0],
-  'opolskie': [50.7, 17.9], 'lubuskie': [51.9, 15.5], 'zachodniopomorskie': [53.4, 15.5], 'pomorskie': [54.2, 18.5],
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+  attribution: '© OpenStreetMap © CARTO',
+  subdomains: 'abcd',
+  maxZoom: 19
+}).addTo(map);
+
+// Subtle label layer on top
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', {
+  attribution: '',
+  subdomains: 'abcd',
+  maxZoom: 19,
+  opacity: 0.6
+}).addTo(map);
+
+// ─── STATE ──────────────────────────────────────────────────────
+let warnings = [];
+let markers = {};
+let activeFilter = 'all';
+
+// ─── COLORS / TYPES ─────────────────────────────────────────────
+const TYPE_CONFIG = {
+  fire:     { color: '#e84747', bg: 'rgba(232,71,71,0.25)',    emoji: '🔥', label: 'POŻAR' },
+  flood:    { color: '#4787e8', bg: 'rgba(71,135,232,0.25)',   emoji: '🌊', label: 'POWÓDŹ' },
+  storm:    { color: '#9b47e8', bg: 'rgba(155,71,232,0.25)',   emoji: '⛈', label: 'BURZA' },
+  accident: { color: '#e88c47', bg: 'rgba(232,140,71,0.25)',   emoji: '🚨', label: 'WYPADEK' },
+  other:    { color: '#47c878', bg: 'rgba(71,200,120,0.25)',   emoji: '⚠️', label: 'OSTRZEŻENIE' }
 };
 
-function geocode(area) {
-  if (!area) return [52.0, 19.5];
-  const lower = area.toLowerCase().trim();
-  if (GEO_DB[lower]) return GEO_DB[lower];
-  let best = null, bestLen = 0;
-  for (const [k, v] of Object.entries(GEO_DB)) {
-    if (lower.includes(k) && k.length > bestLen) { best = v; bestLen = k.length; }
+function detectType(text) {
+  const t = text.toLowerCase();
+  if (/pożar|ogień|pali się|płonie|pożoga/.test(t)) return 'fire';
+  if (/powódź|zalanie|wylew|zatopienie|woda|deszcz nawalny/.test(t)) return 'flood';
+  if (/burza|grad|wichura|huragan|tornado|wiatr|trąba/.test(t)) return 'storm';
+  if (/wypadek|kolizja|zderzenie|rozbicie|karambol|pożar drogi/.test(t)) return 'accident';
+  return 'other';
+}
+
+// ─── LOCATION EXTRACTION ────────────────────────────────────────
+const LOCATION_PATTERNS = [
+  /(?:w|we|k\.|koło|przy|nad|pod|przez|między|miejscowości|miejscowość|mieście|gminie|powiecie|rejonie|obszarze|okolicach?|wsi|wiosce|sołectwie)\s+([A-ZŁŚŻŹĆŃÓĄĘ][a-ząęółśżźćńA-ZŁŚŻŹĆŃÓĄĘ\s\-]{2,30})/i,
+  /([A-ZŁŚŻŹĆŃÓĄĘ][a-ząęółśżźćńA-ZŁŚŻŹĆŃÓĄĘ\s\-]{2,25})(?:\s*,\s*(?:ul\.|ulica|os\.|osiedle|al\.|aleja))/i,
+  /(?:ul\.|ulica|os\.|aleja|al\.)\s+[^,]+,\s+([A-ZŁŚŻŹĆŃÓĄĘ][a-ząęółśżźćń\s\-]{2,25})/i,
+  /(?:^|[\.\!\?]\s+)([A-ZŁŚŻŹĆŃÓĄĘ][a-ząęółśżźćń]{2,20})(?:,?\s+\d{2}-\d{3})?/m,
+];
+
+function extractLocation(text) {
+  for (const pattern of LOCATION_PATTERNS) {
+    const m = text.match(pattern);
+    if (m) {
+      const loc = (m[1] || m[2] || m[3] || '').trim();
+      if (loc.length > 2 && loc.length < 50) return loc;
+    }
   }
-  return best || [52.0 + (Math.random()-0.5)*2, 19.5 + (Math.random()-0.5)*2];
+  // Fallback: first capitalized word sequence
+  const words = text.split(/\s+/);
+  for (const w of words) {
+    if (/^[A-ZŁŚŻŹĆŃÓĄĘ][a-ząęółśżźćń]{2,}$/.test(w)) return w;
+  }
+  return null;
 }
 
-function parseWarning(text, filename) {
-  const get = label => { const m = text.match(new RegExp(label + '[:\\s]+(.+)', 'i')); return m ? m[1].trim() : ''; };
-  const sm = text.match(/Stopień zagrożenia[:\s]+(\d)/i);
-  const dm = text.match(/Data i godzina wydania[:\s]+([\d.]+)[^\d]+([\d:]+)/i);
-  const wm = text.match(/Ważność[:\s]+(.+)/i);
-  return {
-    filename,
-    zjawisko: get('Zjawisko'),
-    stopien: sm ? parseInt(sm[1]) : 1,
-    waznosc: wm ? wm[1].trim() : '',
-    obszar: get('Obszar'),
-    przebieg: get('Przebieg'),
-    prawdopodobienstwo: get('Prawdopodobieństwo wystąpienia zjawiska'),
-    dataWydania: dm ? `${dm[1]} ${dm[2]}` : '',
-    dyżurny: get('Dyżurny synoptyk hydrolog'),
-  };
+// ─── GEOCODING ──────────────────────────────────────────────────
+async function geocode(locationName) {
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(locationName + ', Polska')}&format=json&limit=3&countrycodes=pl`;
+  try {
+    const resp = await fetch(url, { headers: { 'Accept-Language': 'pl', 'User-Agent': 'AlertMapDashboard/1.0' } });
+    const data = await resp.json();
+    if (data && data.length > 0) {
+      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), display: data[0].display_name };
+    }
+  } catch(e) { console.warn('Geocode error:', e); }
+  return null;
 }
 
-let warnings = [], activeId = null;
-const COLORS = { 1: '#facc15', 2: '#f97316', 3: '#ef4444' };
+// ─── MARKER ─────────────────────────────────────────────────────
+function createMarkerIcon(type) {
+  const cfg = TYPE_CONFIG[type];
+  const html = `
+    <div class="marker-wrapper">
+      <div class="marker-pin" style="background:${cfg.color};">
+        <span>${cfg.emoji}</span>
+      </div>
+    </div>`;
+  return L.divIcon({ html, className: '', iconSize: [32, 42], iconAnchor: [16, 42], popupAnchor: [0, -44] });
+}
 
-function render() {
-  clusterGroup.clearLayers();
-  const list = document.getElementById('warningsList');
-  [1,2,3].forEach(s => document.getElementById('cnt'+s).textContent = warnings.filter(w=>w.stopien===s).length);
+function addMarker(warning) {
+  const cfg = TYPE_CONFIG[warning.type];
+  const marker = L.marker([warning.lat, warning.lng], { icon: createMarkerIcon(warning.type) })
+    .addTo(map)
+    .bindTooltip(warning.location, { permanent: false, direction: 'top' })
+    .bindPopup(`
+      <div class="popup-inner">
+        <div class="popup-type" style="color:${cfg.color}">${cfg.label}</div>
+        <div class="popup-location">${warning.location}</div>
+        <div class="popup-text">${escHtml(warning.text)}</div>
+        <div class="popup-time">${warning.time}</div>
+      </div>
+    `, { maxWidth: 280, minWidth: 200 });
 
-  if (!warnings.length) {
-    list.innerHTML = `<div class="empty-state"><div class="big">📂</div><div>Wczytaj pliki ostrzeżeń<br>aby zobaczyć listę</div></div>`;
+  markers[warning.id] = marker;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ─── FILE PROCESSING ────────────────────────────────────────────
+async function processFile(file) {
+  if (!file.name.endsWith('.txt')) {
+    showStatus('Obsługiwane są tylko pliki .txt', 2000, true);
     return;
   }
 
-  list.innerHTML = `<div class="section-label">Ostrzeżenia (${warnings.length})</div>`;
+  const text = await file.text();
+  const type = detectType(text);
+  const location = extractLocation(text);
 
-  warnings.forEach((w, i) => {
+  if (!location) {
+    showStatus(`Nie znaleziono lokalizacji w: ${file.name}`, 2500, true);
+    return;
+  }
+
+  showStatus(`Geokodowanie: ${location}...`);
+  setLoading(true);
+
+  const coords = await geocode(location);
+  setLoading(false);
+
+  if (!coords) {
+    showStatus(`Nie można zlokalizować: "${location}"`, 2500, true);
+    return;
+  }
+
+  const warning = {
+    id: Date.now() + Math.random(),
+    text: text.trim(),
+    type,
+    location,
+    lat: coords.lat,
+    lng: coords.lng,
+    time: new Date().toLocaleString('pl-PL'),
+    filename: file.name,
+    visible: true
+  };
+
+  warnings.push(warning);
+  addMarker(warning);
+  renderList();
+  updateStats();
+  applyFilter();
+  map.setView([warning.lat, warning.lng], Math.max(map.getZoom(), 10), { animate: true });
+  hideStatus();
+}
+
+// ─── RENDER LIST ────────────────────────────────────────────────
+function renderList() {
+  const list = document.getElementById('warnings-list');
+  const empty = document.getElementById('empty-state');
+
+  const filtered = activeFilter === 'all' ? warnings : warnings.filter(w => w.type === activeFilter);
+
+  if (warnings.length === 0) {
+    list.innerHTML = '';
+    list.appendChild(empty || createEmpty());
+    document.getElementById('clear-btn').style.display = 'none';
+    return;
+  }
+
+  document.getElementById('clear-btn').style.display = 'block';
+  list.innerHTML = '';
+
+  [...filtered].reverse().forEach(w => {
+    const cfg = TYPE_CONFIG[w.type];
     const card = document.createElement('div');
-    card.className = `warning-card s${w.stopien}${activeId===i?' active':''}`;
+    card.className = 'warning-card';
+    card.dataset.type = w.type;
+    card.dataset.id = w.id;
     card.innerHTML = `
       <div class="card-top">
-        <div class="card-area">${w.obszar || w.filename}</div>
-        <span class="badge s${w.stopien}">ST.${w.stopien}</span>
+        <span class="card-type">${cfg.label}</span>
+        <button class="card-remove" onclick="removeWarning(${w.id}, event)" title="Usuń">✕</button>
       </div>
-      <div class="card-phenomenon">${w.zjawisko || '—'}</div>
-      <div class="card-date">${w.dataWydania || ''}</div>`;
-    card.addEventListener('click', () => selectWarning(i));
-    list.appendChild(card);
-
-    const coord = geocode(w.obszar);
-    const color = COLORS[w.stopien] || '#facc15';
-    const icon = L.divIcon({
-      html: `<div class="custom-marker" style="background:${color};width:28px;height:28px;"><span>${w.stopien}</span></div>`,
-      className: '', iconSize: [28,28], iconAnchor: [14,28], popupAnchor: [0,-32]
+      <div class="card-location">${escHtml(w.location)}</div>
+      <div class="card-preview">${escHtml(w.text)}</div>
+      <div class="card-time">${w.time} &nbsp;·&nbsp; ${w.filename}</div>
+    `;
+    card.addEventListener('click', () => {
+      map.setView([w.lat, w.lng], 13, { animate: true });
+      setTimeout(() => markers[w.id]?.openPopup(), 400);
     });
-    const marker = L.marker(coord, { icon, _stopien: w.stopien });
-    marker.bindPopup(() => buildPopup(w), { maxWidth: 300 });
-    marker.on('click', () => selectWarning(i));
-    clusterGroup.addLayer(marker);
+    list.appendChild(card);
   });
 }
 
-function buildPopup(w) {
-  const div = document.createElement('div');
-  div.className = 'popup-body';
-  div.innerHTML = `
-    <div class="popup-header">
-      <span class="badge s${w.stopien}">STOPIEŃ ${w.stopien}</span>
-      <div class="popup-area">${w.obszar || '—'}</div>
-    </div>
-    <div class="popup-row"><span class="popup-label">Zjawisko</span><span class="popup-val">${w.zjawisko||'—'}</span></div>
-    <div class="popup-row"><span class="popup-label">Ważność</span><span class="popup-val">${w.waznosc||'—'}</span></div>
-    <div class="popup-row"><span class="popup-label">Prawdopod.</span><span class="popup-val">${w.prawdopodobienstwo||'—'}</span></div>
-    ${w.przebieg?`<div class="popup-row"><span class="popup-label">Przebieg</span><span class="popup-val" style="font-size:11px;color:var(--muted)">${w.przebieg.substring(0,200)}${w.przebieg.length>200?'…':''}</span></div>`:''}
-    <div class="popup-row"><span class="popup-label">Wydano</span><span class="popup-val">${w.dataWydania||'—'}</span></div>
-    ${w.dyżurny?`<div class="popup-row"><span class="popup-label">Dyżurny</span><span class="popup-val">${w.dyżurny}</span></div>`:''}`;
-  return div;
+function createEmpty() {
+  const d = document.createElement('div');
+  d.id = 'empty-state';
+  d.innerHTML = `<div class="empty-icon">📍</div><div class="empty-text">Brak ostrzeżeń.<br>Wgraj plik .txt, aby dodać pinezkę na mapę.</div>`;
+  return d;
 }
 
-function selectWarning(i) {
-  activeId = i;
-  render();
-  document.querySelectorAll('.warning-card')[i]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+// ─── REMOVE ─────────────────────────────────────────────────────
+function removeWarning(id, e) {
+  e.stopPropagation();
+  const idx = warnings.findIndex(w => w.id == id);
+  if (idx === -1) return;
+  map.removeLayer(markers[id]);
+  delete markers[id];
+  warnings.splice(idx, 1);
+  renderList();
+  updateStats();
 }
 
-function processFiles(files) {
-  Promise.all([...files].map(f => new Promise(res => {
-    const r = new FileReader();
-    r.onload = e => res({ text: e.target.result, name: f.name });
-    r.readAsText(f, 'UTF-8');
-  }))).then(results => {
-    warnings = [...warnings, ...results.map(({text, name}) => parseWarning(text, name))];
-    render();
-    const pts = warnings.map(w => geocode(w.obszar));
-    if (pts.length) map.fitBounds(pts, { padding: [50, 50] });
+function clearAll() {
+  if (!confirm('Usunąć wszystkie ostrzeżenia?')) return;
+  warnings.forEach(w => map.removeLayer(markers[w.id]));
+  markers = {};
+  warnings = [];
+  renderList();
+  updateStats();
+}
+
+// ─── FILTER ─────────────────────────────────────────────────────
+function applyFilter() {
+  warnings.forEach(w => {
+    const m = markers[w.id];
+    if (!m) return;
+    if (activeFilter === 'all' || w.type === activeFilter) {
+      map.addLayer(m);
+    } else {
+      map.removeLayer(m);
+    }
   });
+  renderList();
 }
 
-const dropZone = document.getElementById('dropZone');
-const fileInput = document.getElementById('fileInput');
-fileInput.addEventListener('change', e => processFiles(e.target.files));
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    activeFilter = chip.dataset.type;
+    applyFilter();
+  });
+});
+
+// ─── STATS ──────────────────────────────────────────────────────
+function updateStats() {
+  document.getElementById('stat-total').textContent = warnings.length;
+  document.getElementById('stat-fire').textContent = warnings.filter(w=>w.type==='fire').length;
+  document.getElementById('stat-flood').textContent = warnings.filter(w=>w.type==='flood').length;
+  document.getElementById('stat-storm').textContent = warnings.filter(w=>w.type==='storm').length;
+}
+
+// ─── STATUS ─────────────────────────────────────────────────────
+let statusTimer;
+function showStatus(msg, duration, isError) {
+  const el = document.getElementById('geocode-status');
+  const msgEl = document.getElementById('geocode-msg');
+  msgEl.textContent = msg;
+  el.style.display = 'flex';
+  el.style.borderColor = isError ? 'var(--red)' : 'var(--border-bright)';
+  if (duration) {
+    clearTimeout(statusTimer);
+    statusTimer = setTimeout(hideStatus, duration);
+  }
+}
+
+function hideStatus() {
+  document.getElementById('geocode-status').style.display = 'none';
+}
+
+function setLoading(on) {
+  document.getElementById('loading-bar').style.display = on ? 'block' : 'none';
+}
+
+// ─── DROP ZONE ──────────────────────────────────────────────────
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); processFiles(e.dataTransfer.files); });
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  [...e.dataTransfer.files].forEach(processFile);
+});
 
-// Sample on load
-const SAMPLE = `Data i godzina wydania: 23.05.2019 - godz. 10:51
-Nazwa biura prognoz hydrologicznych: BPH IMGW-PIB Kraków Obszar Kraków
-OSTRZEŻENIE HYDROLOGICZNE Nr O:5
-Zjawisko: wezbranie z przekroczeniem stanów alarmowych
-Stopień zagrożenia: 3
-Ważność: od godz. 12:00 dnia 23.05.2019 do godz. 18:00 dnia 24.05.2019
-Obszar: Wisła (świętokrzyskie)
-Przebieg: Na skutek spływu wód opadowych, na całym odcinku Wisły, notowany będzie gwałtowny wzrost poziomu wody powyżej stanów ostrzegawczych z przekroczeniem stanów alarmowych.
-Prawdopodobieństwo wystąpienia zjawiska: 95%
-Dyżurny synoptyk hydrolog: Przemysław Plewa`;
-warnings = [parseWarning(SAMPLE, 'przyklad.txt')];
-render();
+fileInput.addEventListener('change', e => {
+  [...e.target.files].forEach(processFile);
+  fileInput.value = '';
+});
+
+// ─── DEMO DATA ──────────────────────────────────────────────────
+// Load a demo warning on start
+async function loadDemo() {
+  const demos = [
+    { name: 'demo_pożar.txt', text: 'UWAGA: Pożar lasu w okolicach Nowego Targu! W miejscowości Nowy Targ wybuchł groźny pożar lasu obejmujący obszar około 15 hektarów. Proszę unikać drogi krajowej nr 49. Służby pożarnicze są na miejscu.' },
+    { name: 'demo_powódź.txt', text: 'Ostrzeżenie hydrologiczne! Wrocław zagrożony powodzią. Poziom rzeki Odry osiągnął stan alarmowy. Mieszkańcy terenów nadrzecznych proszeni są o natychmiastową ewakuację. Powódź może objąć lewobrzeżne dzielnice.' },
+    { name: 'demo_burza.txt', text: 'ALERT BURZOWY: Gdańsk i okolice. Nad obszarem Trójmiasta i Gdańska przechodzi gwałtowna burza z gradem. Notowane są opady gradu o średnicy do 3 cm. Wiatr w porywach przekracza 90 km/h. Nie wychodź z domu!' },
+  ];
+
+  for (const d of demos) {
+    const type = detectType(d.text);
+    const location = extractLocation(d.text);
+    if (!location) continue;
+    const coords = await geocode(location);
+    if (!coords) continue;
+    const warning = {
+      id: Date.now() + Math.random(),
+      text: d.text,
+      type,
+      location,
+      lat: coords.lat,
+      lng: coords.lng,
+      time: new Date().toLocaleString('pl-PL'),
+      filename: d.name,
+      visible: true
+    };
+    warnings.push(warning);
+    addMarker(warning);
+    await new Promise(r => setTimeout(r, 600)); // rate limit
+  }
+
+  renderList();
+  updateStats();
+  hideStatus();
+  setLoading(false);
+}
+
+showStatus('Ładowanie demonstracyjnych danych...');
+setLoading(true);
+loadDemo();
 </script>
 </body>
 </html>
